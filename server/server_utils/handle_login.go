@@ -2,22 +2,21 @@ package server_utils
 
 import (
 	"fmt"
+	"net"
 )
 
 // User login
-func Handle_login() {
-	fmt.Println("Enter Your First Name: ")
+func Handle_login(c net.Conn) {
+	fmt.Println("Voy a handlear un login")
+	reply := make([]byte, 1024)
 
-	// var then variable name then variable type
-	var first string
+	_, _ = c.Read(reply)
 
-	// Taking input from user
-	fmt.Scanln(&first)
-	fmt.Println("Enter Second Last Name: ")
-	var second string
-	fmt.Scanln(&second)
+	fmt.Println("Usuario + contraseña del que ingreso:", string(reply)) // aca deberia fijarse en bdd para chequear q este OK
 
-	fmt.Print("Your Full Name is: ")
+	// si entro correctamente:
 
-	fmt.Print(first + " " + second)
+	msg := "ok" // mensaje de login exitoso
+	_, _ = c.Write([]byte(msg))
+
 }

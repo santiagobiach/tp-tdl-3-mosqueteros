@@ -14,8 +14,10 @@ import (
 var count = 0
 
 func handleConnection(c net.Conn) {
-	fmt.Print("New client connected\n")
-	server_utils.Handle_login()
+	fmt.Println("New client connected")
+	server_utils.Handle_login(c)
+
+	// Nuevos mensajes. Hay que determinar cuál es el pedido que llega y procesarlo
 	for {
 		netData, err := bufio.NewReader(c).ReadString('\n')
 		if err != nil {
