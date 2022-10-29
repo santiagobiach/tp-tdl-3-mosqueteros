@@ -12,7 +12,7 @@ func HandleLogin(c net.Conn) {
 
 	_, _ = c.Read(reply)
 
-	fmt.Println("Usuario + contraseña del que ingreso:", string(reply)) // aca deberia fijarse en bdd para chequear q este OK
+	fmt.Println("Mensaje enviado por el cliente:", string(reply)) // aca deberia fijarse en bdd para chequear q este OK
 
 	// si entro correctamente:
 
