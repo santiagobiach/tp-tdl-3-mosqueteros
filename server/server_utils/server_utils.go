@@ -6,7 +6,7 @@ import (
 )
 
 // User login
-func Handle_login(c net.Conn) {
+func HandleLogin(c net.Conn) {
 	fmt.Println("Voy a handlear un login")
 	reply := make([]byte, 1024)
 

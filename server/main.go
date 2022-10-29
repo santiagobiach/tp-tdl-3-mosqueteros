@@ -15,7 +15,7 @@ var count = 0
 
 func handleConnection(c net.Conn) {
 	fmt.Println("New client connected")
-	server_utils.Handle_login(c)
+	server_utils.HandleLogin(c)
 
 	// Nuevos mensajes. Hay que determinar cuál es el pedido que llega y procesarlo
 	for {
