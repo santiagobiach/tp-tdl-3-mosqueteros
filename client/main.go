@@ -20,6 +20,10 @@ func main() {
 	//Se intenta conectar
 	CONNECT := arguments[1]
 	c, err := net.Dial("tcp", CONNECT)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	client_utils.CheckError(err)
 	client_utils.SendLogin(c)
 	//Lee una linea y espera la devolucion del server

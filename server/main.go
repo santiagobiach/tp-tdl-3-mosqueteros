@@ -20,9 +20,10 @@ import (
 )
 
 var count = 0
+var on_line = 0
 
 func handleConnection(c net.Conn) {
-	fmt.Println("New client connected")
+	fmt.Printf("New client connected, there are %d person connected \n", on_line)
 	server_utils.HandleLogin(c)
 
 	// Nuevos mensajes. Hay que determinar cuál es el pedido que llega y procesarlo
@@ -35,6 +36,7 @@ func handleConnection(c net.Conn) {
 
 		temp := strings.TrimSpace(string(netData))
 		if temp == "STOP" {
+			on_line--
 			break
 		}
 		fmt.Println(temp)
@@ -87,5 +89,6 @@ func main() {
 		}
 		go handleConnection(c)
 		count++
+		on_line++
 	}
 }
