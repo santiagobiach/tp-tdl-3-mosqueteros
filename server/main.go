@@ -23,7 +23,7 @@ var count = 0
 
 func handleConnection(c net.Conn) {
 	fmt.Println("New client connected")
-	server_utils.HandleLogin(c)
+	// server_utils.HandleLogin(c)
 
 	// Nuevos mensajes. Hay que determinar cuál es el pedido que llega y procesarlo
 	for {
@@ -38,6 +38,7 @@ func handleConnection(c net.Conn) {
 			break
 		}
 		fmt.Println(temp)
+		server_utils.ParseMessage(c, temp)
 		counter := strconv.Itoa(count) + "\n"
 		c.Write([]byte(string(counter)))
 	}
