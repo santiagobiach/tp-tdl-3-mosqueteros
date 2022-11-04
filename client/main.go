@@ -21,7 +21,7 @@ func main() {
 	CONNECT := arguments[1]
 	c, err := net.Dial("tcp", CONNECT)
 	client_utils.CheckError(err)
-	client_utils.SendLogin(c)
+	//client_utils.SendLogin(c)
 	//Lee una linea y espera la devolucion del server
 	//Empieza proceso de ingreso de comandos, (el login es algo aparte)
 	for {
