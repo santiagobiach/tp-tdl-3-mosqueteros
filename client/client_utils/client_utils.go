@@ -2,8 +2,8 @@ package client_utils
 
 import (
 	"fmt"
-	"net"
 	"log"
+	"net"
 )
 
 // Error checker
@@ -22,7 +22,7 @@ func SendLogin(c net.Conn) {
 	fmt.Print("Password: ")
 	var password string
 	fmt.Scanln(&password)
-	msg := "li" + " " + username + " " + password // creo mensaje de login
+	msg := "login" + " " + username + " " + password + "\n" // creo mensaje de login
 	_, err := c.Write([]byte(msg))
 	CheckError(err)
 	reply := make([]byte, 2)
