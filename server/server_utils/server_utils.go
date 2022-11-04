@@ -2,7 +2,12 @@ package server_utils
 
 import (
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"log"
 	"net"
+	"server/database"
+	"server/model"
 	"strings"
 )
 
@@ -32,17 +37,81 @@ const (
 func HandleLogin(c net.Conn, arguments []string) {
 
 	fmt.Println("Voy a handlear un login")
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User
+	filter := bson.D{
+		{"username", arguments[1]},
+	}
+
+	err = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta"))
+			return
+		}
+		log.Fatal(err)
+	}
+	if user.Password != arguments[2] {
+		_, _ = c.Write([]byte("La password es incorrecta"))
+		return
+	}
 	msg := "ok" // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
-
 }
 
 // User signup
 func HandleSignup(c net.Conn, arguments []string) {
 
 	fmt.Println("Voy a handlear un signup")
-	msg := "ok" // mensaje de login exitoso
-	_, _ = c.Write([]byte(msg))
+
+	//En los arguments tambien esta el comando
+	if arguments[2] != arguments[3] {
+		_, _ = c.Write([]byte("Las password no son iguales"))
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User
+	user.Username = arguments[1]
+	user.Password = arguments[2]
+	//Primero fijarse si ya existe
+	filter := bson.D{
+		{"username", arguments[1]},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			insertResult, err := coll.InsertOne(ctx, user)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			fmt.Println("Inserted a single document: ", insertResult.InsertedID)
+
+			msg := "ok" // mensaje de login exitoso
+			_, _ = c.Write([]byte(msg))
+			return
+		}
+		log.Fatal(err)
+	}
+	_, _ = c.Write([]byte("Ya existe la cuenta"))
 
 }
 
@@ -173,7 +242,10 @@ func HandleMostFollowed(c net.Conn, arguments []string) {
 
 func ParseMessage(c net.Conn, message string) {
 	split_message := strings.SplitAfter(message, " ")
-	//fmt.Println(strings.TrimSuffix("Foo++", "+"))
+	for i, v := range split_message {
+		split_message[i] = strings.TrimSpace(v)
+	}
+	fmt.Println(split_message)
 	switch strings.TrimSuffix(split_message[0], " ") { // Hay que hacer eso sí o sí porque deja un " " de más
 	case Login:
 		HandleLogin(c, split_message)
