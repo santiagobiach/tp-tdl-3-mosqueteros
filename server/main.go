@@ -17,6 +17,7 @@ func handleConnection(c net.Conn) {
 	// server_utils.HandleLogin(c)
 
 	// Nuevos mensajes. Hay que determinar cuál es el pedido que llega y procesarlo
+	var usuario string
 	for {
 		netData, err := bufio.NewReader(c).ReadString('\n')
 		if err != nil {
@@ -28,7 +29,8 @@ func handleConnection(c net.Conn) {
 			break
 		}
 		fmt.Println(temp)
-		server_utils.ParseMessage(c, temp)
+		server_utils.ParseMessage(c, temp, &usuario)
+		fmt.Println(usuario)
 		counter := strconv.Itoa(count) + "\n"
 		c.Write([]byte(string(counter)))
 	}

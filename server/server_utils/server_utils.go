@@ -34,18 +34,19 @@ const (
 	MostFollowed       string = "mostFollowed"
 )
 
-var logged = false;
+var logged = false
 
 func checkLoginState(c net.Conn) bool {
 	if !logged {
-		msg := "You should logIn first :)" 
-		_, _ = c.Write([]byte(msg))	
+		msg := "You should logIn first :)"
+		_, _ = c.Write([]byte(msg))
 		return false
 	}
 	return true
 }
+
 // User login
-func HandleLogin(c net.Conn, arguments []string) {
+func HandleLogin(c net.Conn, arguments []string, usuario *string) {
 
 	fmt.Println("Voy a handlear un login")
 	client, ctx, cancel, err := database.Connect()
@@ -74,7 +75,9 @@ func HandleLogin(c net.Conn, arguments []string) {
 		_, _ = c.Write([]byte("La password es incorrecta"))
 		return
 	}
-	logged = true
+
+	*usuario = user.Username
+	fmt.Println(*usuario, usuario)
 	msg := "Welcome back " + arguments[1] // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
 }
@@ -84,16 +87,16 @@ func HandleSignup(c net.Conn, arguments []string) {
 
 	fmt.Println("Voy a handlear un signup")
 	if logged {
-		msg := "Already logged in!"// mensaje de signup exitoso
+		msg := "Already logged in!" // mensaje de signup exitoso
 		_, _ = c.Write([]byte(msg))
 		return
 	}
 
 	//En los arguments tambien esta el comando
-	// if arguments[2] != arguments[3] {
-	// 	_, _ = c.Write([]byte("Las password no son iguales"))
-	// 	return
-	// }
+	if arguments[2] != arguments[3] {
+		_, _ = c.Write([]byte("Las password no son iguales"))
+		return
+	}
 	client, ctx, cancel, err := database.Connect()
 
 	if err != nil {
@@ -133,14 +136,18 @@ func HandleSignup(c net.Conn, arguments []string) {
 }
 
 func HandleTweet(c net.Conn, arguments []string) {
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	msg := "ok" // mensaje de tweet exitoso
 	_, _ = c.Write([]byte(msg))
 
 }
 func HandleFollow(c net.Conn, arguments []string) {
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un follow")
 	msg := "ok" // mensaje de follow exitoso
@@ -149,7 +156,9 @@ func HandleFollow(c net.Conn, arguments []string) {
 }
 func HandleUnfollow(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un unf")
 	msg := "ok" // mensaje de unfollow exitoso
@@ -158,7 +167,9 @@ func HandleUnfollow(c net.Conn, arguments []string) {
 }
 func HandleTweetsFrom(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un tweet from")
 	msg := "ok" // mensaje de htf exitoso
@@ -167,7 +178,9 @@ func HandleTweetsFrom(c net.Conn, arguments []string) {
 }
 func HandleTrendingTopic(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un tt")
 	msg := "ok" // mensaje de htt exitoso
@@ -176,7 +189,9 @@ func HandleTrendingTopic(c net.Conn, arguments []string) {
 }
 func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un ttfrom")
 	msg := "ok" // mensaje de httf exitoso
@@ -185,7 +200,9 @@ func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
 }
 func HandleMyTweets(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un my tweets")
 	msg := "ok" // mensaje de mt exitoso
@@ -194,7 +211,9 @@ func HandleMyTweets(c net.Conn, arguments []string) {
 }
 func HandleMyFollowers(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un myfollowers")
 	msg := "ok" // mensaje de mf exitoso
@@ -203,7 +222,9 @@ func HandleMyFollowers(c net.Conn, arguments []string) {
 }
 func HandleMyFollowing(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un myfollowing")
 	msg := "ok" // mensaje de mfng exitoso
@@ -213,7 +234,9 @@ func HandleMyFollowing(c net.Conn, arguments []string) {
 
 func HandleFeed(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un feed")
 	msg := "ok" // mensaje de mf exitoso
@@ -222,7 +245,9 @@ func HandleFeed(c net.Conn, arguments []string) {
 }
 func HandleReply(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un reply")
 	msg := "ok" // mensaje de mr exitoso
@@ -232,7 +257,9 @@ func HandleReply(c net.Conn, arguments []string) {
 
 func HandleAddTweetToThread(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un addtweedtothread")
 	msg := "ok" // mensaje de mat exitoso
@@ -241,7 +268,9 @@ func HandleAddTweetToThread(c net.Conn, arguments []string) {
 }
 
 func HandleNewThread(c net.Conn, arguments []string) {
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un newthread")
 	msg := "ok" // mensaje de login exitoso
@@ -250,7 +279,9 @@ func HandleNewThread(c net.Conn, arguments []string) {
 }
 func HandleThread(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un thread")
 	msg := "ok" // mensaje de login exitoso
@@ -259,7 +290,9 @@ func HandleThread(c net.Conn, arguments []string) {
 }
 
 func HandleLike(c net.Conn, arguments []string) {
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un like")
 	msg := "ok" // mensaje de login exitoso
@@ -268,7 +301,9 @@ func HandleLike(c net.Conn, arguments []string) {
 }
 func HandleMostLiked(c net.Conn, arguments []string) {
 
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 
 	fmt.Println("Voy a handlear un mostliked")
 	msg := "ok" // mensaje de login exitoso
@@ -277,14 +312,16 @@ func HandleMostLiked(c net.Conn, arguments []string) {
 }
 
 func HandleMostFollowed(c net.Conn, arguments []string) {
-	if(!checkLoginState(c)) {return}
+	if !checkLoginState(c) {
+		return
+	}
 	fmt.Println("Voy a handlear un mostfollowed")
 	msg := "ok" // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
 
 }
 
-func ParseMessage(c net.Conn, message string) {
+func ParseMessage(c net.Conn, message string, usuario *string) {
 	split_message := strings.SplitAfter(message, " ")
 	for i, v := range split_message {
 		split_message[i] = strings.TrimSpace(v)
@@ -292,7 +329,7 @@ func ParseMessage(c net.Conn, message string) {
 	fmt.Println(split_message)
 	switch strings.TrimSuffix(split_message[0], " ") { // Hay que hacer eso sí o sí porque deja un " " de más
 	case Login:
-		HandleLogin(c, split_message)
+		HandleLogin(c, split_message, usuario)
 	case Signup:
 		HandleSignup(c, split_message)
 	case Tweet:
