@@ -2,13 +2,14 @@ package server_utils
 
 import (
 	"fmt"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	"net"
 	"server/database"
 	"server/model"
 	"strings"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -61,10 +62,10 @@ func HandleLogin(c net.Conn, arguments []string) {
 		log.Fatal(err)
 	}
 	if user.Password != arguments[2] {
-		_, _ = c.Write([]byte("La password es incorrecta"))
+		_, _ = c.Write([]byte("El password es incorrecto"))
 		return
 	}
-	msg := "ok" // mensaje de login exitoso
+	msg := "holà " + user.Username // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
 }
 
@@ -75,7 +76,7 @@ func HandleSignup(c net.Conn, arguments []string) {
 
 	//En los arguments tambien esta el comando
 	if arguments[2] != arguments[3] {
-		_, _ = c.Write([]byte("Las password no son iguales"))
+		_, _ = c.Write([]byte("Los password no son iguales"))
 		return
 	}
 	client, ctx, cancel, err := database.Connect()
@@ -91,6 +92,7 @@ func HandleSignup(c net.Conn, arguments []string) {
 	var user model.User
 	user.Username = arguments[1]
 	user.Password = arguments[2]
+	//user.Isonline = true
 	//Primero fijarse si ya existe
 	filter := bson.D{
 		{"username", arguments[1]},
@@ -105,7 +107,7 @@ func HandleSignup(c net.Conn, arguments []string) {
 
 			fmt.Println("Inserted a single document: ", insertResult.InsertedID)
 
-			msg := "ok" // mensaje de login exitoso
+			msg := "cuenta creada" // mensaje de login exitoso
 			_, _ = c.Write([]byte(msg))
 			return
 		}
@@ -118,7 +120,34 @@ func HandleSignup(c net.Conn, arguments []string) {
 func HandleTweet(c net.Conn, arguments []string) {
 
 	fmt.Println("Voy a handlear un tweet")
-	msg := "ok" // mensaje de login exitoso
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	//coll_user := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
+	var tweet model.Tweet
+	var tweet_content string
+
+	for i := 1; i < len(arguments); i++ {
+		tweet_content += arguments[i] + " "
+	}
+
+	tweet.Content = tweet_content
+
+	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("hay un nuevo tweet, on id : ", insertTweet.InsertedID)
+
+	msg := "tweet enviado" // mensaje de tweet exitoso
 	_, _ = c.Write([]byte(msg))
 
 }
