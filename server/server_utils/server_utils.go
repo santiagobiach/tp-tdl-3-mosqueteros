@@ -35,7 +35,13 @@ const (
 )
 
 // User login
-func HandleLogin(c net.Conn, arguments []string) {
+func HandleLogin(c net.Conn, arguments []string, username *string) {
+
+	if *username != "" {
+		msg := "No puedes iniciar sesión si ya hay alguien logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
 
 	fmt.Println("Voy a handlear un login")
 	client, ctx, cancel, err := database.Connect()
@@ -65,13 +71,18 @@ func HandleLogin(c net.Conn, arguments []string) {
 		_, _ = c.Write([]byte("El password es incorrecto"))
 		return
 	}
+	*username = user.Username
 	msg := "holà " + user.Username // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
 }
 
 // User signup
-func HandleSignup(c net.Conn, arguments []string) {
-
+func HandleSignup(c net.Conn, arguments []string, username *string) {
+	if *username != "" {
+		msg := "No puedes crear una cuenta si hay alguien logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
 	fmt.Println("Voy a handlear un signup")
 
 	//En los arguments tambien esta el comando
@@ -92,6 +103,8 @@ func HandleSignup(c net.Conn, arguments []string) {
 	var user model.User
 	user.Username = arguments[1]
 	user.Password = arguments[2]
+	user.Following = []string{}
+	user.Followers = []string{}
 	//user.Isonline = true
 	//Primero fijarse si ya existe
 	filter := bson.D{
@@ -117,7 +130,14 @@ func HandleSignup(c net.Conn, arguments []string) {
 
 }
 
-func HandleTweet(c net.Conn, arguments []string) {
+func HandleTweet(c net.Conn, arguments []string, username *string) {
+
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
+
 
 	fmt.Println("Voy a handlear un tweet")
 
@@ -140,33 +160,92 @@ func HandleTweet(c net.Conn, arguments []string) {
 	}
 
 	tweet.Content = tweet_content
+	tweet.Username = *username
 
 	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("hay un nuevo tweet, on id : ", insertTweet.InsertedID)
+	fmt.Println("El nuevo tweet es de ", tweet.Username)
 
 	msg := "tweet enviado" // mensaje de tweet exitoso
 	_, _ = c.Write([]byte(msg))
 
 }
-func HandleFollow(c net.Conn, arguments []string) {
-
+func HandleFollow(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un follow")
-	msg := "ok" // mensaje de login exitoso
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
+
+	// Primero, busco al usuario que quiero seguir solo para saber si existe (no podes seguir a alguien que no existe)
+	// Despues, busco mi usuario (username)
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var userToFollow model.User //usuario que quiero seguir
+	filter := bson.D{
+		{"username", arguments[1]},
+	}
+
+	err = coll.FindOne(ctx, filter).Decode(&userToFollow)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta que quieres seguir"))
+			return
+		}
+		log.Fatal(err)
+	}
+	userToFollow.Followers = append(userToFollow.Followers, *username)
+
+	var user model.User //yo
+	// filter := bson.D{
+	// 	{"username", username},
+	// }
+
+	_ = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta que quieres seguir"))
+			return
+		}
+		log.Fatal(err)
+	}
+	user.Following = append(user.Following, arguments[1])
+	fmt.Println(user)
+	fmt.Println(userToFollow)
+	msg := "¡Has seguido a " + arguments[1] + " !" // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
 
 }
-func HandleUnfollow(c net.Conn, arguments []string) {
-
+func HandleUnfollow(c net.Conn, arguments []string, username *string) {
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
 	fmt.Println("Voy a handlear un unf")
 	msg := "ok" // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
-
 }
-func HandleTweetsFrom(c net.Conn, arguments []string) {
+func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return;
+	}
 	fmt.Println("Voy a handlear un tweet from")
 	msg := "ok" // mensaje de login exitoso
 	_, _ = c.Write([]byte(msg))
@@ -269,25 +348,28 @@ func HandleMostFollowed(c net.Conn, arguments []string) {
 
 }
 
-func ParseMessage(c net.Conn, message string) {
+func ParseMessage(c net.Conn, message string, username *string) {
 	split_message := strings.SplitAfter(message, " ")
 	for i, v := range split_message {
 		split_message[i] = strings.TrimSpace(v)
 	}
 	fmt.Println(split_message)
+
+	// TODAS DEBERIAN RECIBIR EL USERNAME
+
 	switch strings.TrimSuffix(split_message[0], " ") { // Hay que hacer eso sí o sí porque deja un " " de más
 	case Login:
-		HandleLogin(c, split_message)
+		HandleLogin(c, split_message, username)
 	case Signup:
-		HandleSignup(c, split_message)
+		HandleSignup(c, split_message, username)
 	case Tweet:
-		HandleTweet(c, split_message)
+		HandleTweet(c, split_message, username)
 	case Follow:
-		HandleFollow(c, split_message)
+		HandleFollow(c, split_message, username)
 	case Unfollow:
-		HandleUnfollow(c, split_message)
+		HandleUnfollow(c, split_message, username)
 	case TweetsFrom:
-		HandleTweetsFrom(c, split_message)
+		HandleTweetsFrom(c, split_message, username)
 	case TrendingTopic:
 		HandleTrendingTopic(c, split_message)
 	case TrendingTweetsFrom:

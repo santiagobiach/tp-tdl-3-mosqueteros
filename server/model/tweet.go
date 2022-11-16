@@ -1,7 +1,11 @@
 package model
+// import (
+// 	"primitive"
+// )
 
 type Tweet struct {
-	Iduser  string `json:"iduser"`
+	Idtweet  string `json:"idtweet"`
+	Username string `json:"username"`
 	Content string `json:"content"`
 }
 
