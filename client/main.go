@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"client/client_utils"
+	"regexp"
 )
 
 func main() {
@@ -31,7 +32,8 @@ func main() {
 		fmt.Fprintf(c, text+"\n")
 
 		message, _ := bufio.NewReader(c).ReadString('\n')
-		fmt.Print("->: " + message)
+		fmt.Println("->: " + regexp.MustCompile(`[^a-zA-Z ]+`).ReplaceAllString(message, ""))
+		fmt.Println()
 		if strings.TrimSpace(string(text)) == "STOP" {
 			fmt.Println("TCP client exiting...")
 			return
