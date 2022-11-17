@@ -155,6 +155,7 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	var tweet_content string
 
 	for i := 1; i < len(arguments); i++ {
+		//Si la palabra empieza con # agregar a una coleccion de la bdd de topics
 		tweet_content += arguments[i] + " "
 	}
 
@@ -207,11 +208,11 @@ func HandleFollow(c net.Conn, arguments []string, username *string) {
 		log.Fatal(err)
 	}
 	userToFollow.Followers = append(userToFollow.Followers, *username)
-
+	_, err = coll.ReplaceOne(ctx, filter, userToFollow)
 	var user model.User //yo
-	// filter := bson.D{
-	// 	{"username", username},
-	// }
+	filter = bson.D{
+		{"username", *username},
+	}
 
 	_ = coll.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
@@ -222,6 +223,7 @@ func HandleFollow(c net.Conn, arguments []string, username *string) {
 		log.Fatal(err)
 	}
 	user.Following = append(user.Following, arguments[1])
+	_, err = coll.ReplaceOne(ctx, filter, user)
 	fmt.Println(user)
 	fmt.Println(userToFollow)
 	msg := "¡Has seguido a " + arguments[1] + " !" // mensaje de login exitoso
@@ -267,9 +269,11 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 			userToUnfollow.Followers = append(userToUnfollow.Followers[:i], userToUnfollow.Followers[(i+1):]...)
 		}
 	}
-
+	_, err = coll.ReplaceOne(ctx, filter, userToUnfollow)
 	var user model.User //yo
-
+	filter = bson.D{
+		{"username", *username},
+	}
 	_ = coll.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -285,7 +289,7 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 			user.Following = append(user.Following[:i], user.Following[(i+1):]...)
 		}
 	}
-
+	_, err = coll.ReplaceOne(ctx, filter, user)
 	fmt.Println(user)
 	fmt.Println(userToUnfollow)
 	msg := "¡Has unfollow " + arguments[1] + " !" // mensaje de login exitoso
@@ -311,6 +315,7 @@ func HandleTrendingTopic(c net.Conn, arguments []string) {
 	_, _ = c.Write([]byte(msg))
 
 }
+
 func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
 
 	fmt.Println("Voy a handlear un ttfrom")
@@ -325,17 +330,78 @@ func HandleMyTweets(c net.Conn, arguments []string) {
 	_, _ = c.Write([]byte(msg))
 
 }
-func HandleMyFollowers(c net.Conn, arguments []string) {
+func HandleMyFollowers(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un myfollowers")
-	msg := "ok" // mensaje de login exitoso
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User //yo
+	filter := bson.D{
+		{"username", *username},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta"))
+			return
+		}
+		log.Fatal(err)
+	}
+	msg := "Las personas que te siguen son: " // mensaje de login exitoso
+	fmt.Println(user.Followers)
+	for i := 0; i < len(user.Followers); i++ {
+		msg = msg + " " + user.Followers[i]
+	}
 	_, _ = c.Write([]byte(msg))
 
 }
-func HandleMyFollowing(c net.Conn, arguments []string) {
+func HandleMyFollowing(c net.Conn, arguments []string, username *string) {
+	fmt.Println("Voy a handlear un my following")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		_, _ = c.Write([]byte(msg))
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
 
-	fmt.Println("Voy a handlear un myfollowing")
-	msg := "ok" // mensaje de login exitoso
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User //yo
+	filter := bson.D{
+		{"username", *username},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta"))
+			return
+		}
+		log.Fatal(err)
+	}
+	msg := "Las personas que seguis son: " // mensaje de login exitoso
+	fmt.Println(user.Following)
+	for i := 0; i < len(user.Following); i++ {
+		msg = msg + " " + user.Following[i]
+	}
 	_, _ = c.Write([]byte(msg))
 
 }
@@ -430,9 +496,9 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case MyTweets:
 		HandleMyTweets(c, split_message)
 	case MyFollowers:
-		HandleMyFollowers(c, split_message)
+		HandleMyFollowers(c, split_message, username)
 	case MyFollowing:
-		HandleMyFollowing(c, split_message)
+		HandleMyFollowing(c, split_message, username)
 	case Feed:
 		HandleFeed(c, split_message)
 	case Reply:
