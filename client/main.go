@@ -32,6 +32,7 @@ func main() {
 		fmt.Fprintf(c, text+"\n")
 
 		message, _ := bufio.NewReader(c).ReadString('\n')
+		//Esto definitivamente no va.
 		fmt.Println("->: " + regexp.MustCompile(`[^a-zA-Z ]+`).ReplaceAllString(message, ""))
 		fmt.Println()
 		if strings.TrimSpace(string(text)) == "STOP" {

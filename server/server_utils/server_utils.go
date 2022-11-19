@@ -1,12 +1,14 @@
 package server_utils
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
 	"server/database"
 	"server/model"
 	"strings"
+	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -161,7 +163,7 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 
 	tweet.Content = tweet_content
 	tweet.Username = *username
-
+	tweet.Timestamp = time.Now()
 	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
 	if err != nil {
 		log.Fatal(err)
@@ -323,10 +325,43 @@ func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
 	_, _ = c.Write([]byte(msg))
 
 }
-func HandleMyTweets(c net.Conn, arguments []string) {
+func HandleMyTweets(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un my tweets")
-	msg := "ok" // mensaje de login exitoso
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
+	filter := bson.D{
+		{"username", *username},
+	}
+
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, _ = c.Write([]byte("No existe la cuenta que quieres seguir"))
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Tweets
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	msg := ""
+	for _, result := range results {
+		cursor.Decode(&result)
+
+		msg += result.Idtweet + result.Content + result.Timestamp.String() + "\n"
+	}
+
 	_, _ = c.Write([]byte(msg))
 
 }
@@ -494,7 +529,7 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case TrendingTweetsFrom:
 		HandleTrendingTweetsFrom(c, split_message)
 	case MyTweets:
-		HandleMyTweets(c, split_message)
+		HandleMyTweets(c, split_message, username)
 	case MyFollowers:
 		HandleMyFollowers(c, split_message, username)
 	case MyFollowing:
