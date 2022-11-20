@@ -477,9 +477,73 @@ func HandleMyFollowing(c net.Conn, arguments []string, username *string) {
 
 }
 
-func HandleFeed(c net.Conn, arguments []string) {
+func HandleFeed(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un feed")
+
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User //yo
+	filter := bson.D{
+		{"username", *username},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta \n")
+			return
+		}
+		log.Fatal(err)
+	}
+	following := user.Following
+
+	coll = client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+	days, err := strconv.Atoi(arguments[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	now := time.Now().UTC()
+	aux := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	filter = bson.D{
+		{"username", bson.M{
+			"$in": following,
+		}},
+		{"timestamp", bson.M{
+			"$gte": aux.AddDate(0, 0, -days),
+		}},
+	}
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta que queres seguir\n")
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Tweets
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	msg := ""
+	for _, result := range results {
+		cursor.Decode(&result)
+
+		msg = result.Idtweet + result.Content + result.Timestamp.String()
+		fmt.Fprintf(c, msg+"\n")
+	}
 
 }
 func HandleReply(c net.Conn, arguments []string) {
@@ -554,7 +618,7 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case MyFollowing:
 		HandleMyFollowing(c, split_message, username)
 	case Feed:
-		HandleFeed(c, split_message)
+		HandleFeed(c, split_message, username)
 	case Reply:
 		HandleReply(c, split_message)
 	case NewThread:
