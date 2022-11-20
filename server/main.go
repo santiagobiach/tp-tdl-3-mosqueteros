@@ -6,11 +6,8 @@ import (
 	"net"
 	"os"
 	"server/server_utils"
-	"strconv"
 	"strings"
 )
-
-var count = 0
 
 func handleConnection(c net.Conn) {
 	fmt.Println("New client connected")
@@ -30,8 +27,6 @@ func handleConnection(c net.Conn) {
 		}
 		fmt.Println(temp)
 		server_utils.ParseMessage(c, temp, &username)
-		counter := strconv.Itoa(count) + "\n"
-		c.Write([]byte(string(counter)))
 	}
 	c.Close()
 }
@@ -58,6 +53,5 @@ func main() {
 			return
 		}
 		go handleConnection(c)
-		count++
 	}
 }
