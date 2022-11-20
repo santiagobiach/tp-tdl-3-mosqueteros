@@ -7,6 +7,7 @@ import (
 	"net"
 	"server/database"
 	"server/model"
+	"strconv"
 	"strings"
 	"time"
 
@@ -306,6 +307,48 @@ func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 		return
 	}
 	fmt.Println("Voy a handlear un tweet from")
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+	days, err := strconv.Atoi(arguments[2])
+	if err != nil {
+		log.Fatal(err)
+	}
+	now := time.Now().UTC()
+	aux := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	filter := bson.D{
+		{"username", arguments[1]},
+		{"timestamp", bson.M{
+			"$gte": aux.AddDate(0, 0, -days),
+		}},
+	}
+
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No se encontraron tweets\n")
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Tweets
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	msg := ""
+	for _, result := range results {
+		cursor.Decode(&result)
+
+		msg = result.Idtweet + result.Content + result.Timestamp.String()
+		fmt.Fprintf(c, msg+"\n")
+	}
 
 }
 func HandleTrendingTopic(c net.Conn, arguments []string) {
