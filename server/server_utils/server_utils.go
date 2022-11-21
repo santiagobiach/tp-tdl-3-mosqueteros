@@ -511,7 +511,7 @@ func HandleFeed(c net.Conn, arguments []string, username *string) {
 	following := user.Following
 
 	coll = client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
-	days, err := strconv.Atoi(arguments[2])
+	days, err := strconv.Atoi(arguments[1])
 	if err != nil {
 		log.Fatal(err)
 	}

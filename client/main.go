@@ -2,12 +2,11 @@ package main
 
 import (
 	"bufio"
+	"client/client_utils"
 	"fmt"
 	"net"
 	"os"
 	"strings"
-
-	"client/client_utils"
 )
 
 func main() {
@@ -30,7 +29,10 @@ func main() {
 		fmt.Print(">> ")
 		text, _ := reader.ReadString('\n')
 		fmt.Fprintf(c, text+"\n")
-
+		if strings.TrimSpace(string(text)) == "STOP" {
+			fmt.Println("TCP client exiting...")
+			return
+		}
 		message, _ := readerFromServer.ReadString('\n')
 		//Hay comandos que devuelven varias lineas(Vease cualquiera q tenga que ver con tweets)
 		//Para arreglar eso usamos a "ok" como mensaje de que termino de ejecutarse el comando
@@ -41,10 +43,7 @@ func main() {
 		//Esto definitivamente no va.
 		//fmt.Println("->: " + regexp.MustCompile(`[^a-zA-Z ]+`).ReplaceAllString(message, ""))
 		fmt.Println()
-		if strings.TrimSpace(string(text)) == "STOP" {
-			fmt.Println("TCP client exiting...")
-			return
-		}
+
 	}
 }
 
