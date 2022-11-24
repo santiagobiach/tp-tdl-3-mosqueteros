@@ -13,6 +13,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
@@ -603,7 +604,7 @@ func HandleAddTweetToThread(c net.Conn, arguments []string, username *string) {
 		log.Fatal(err)
 	}
 
-	thread.Tweets = append(thread.Tweets, fmt.Sprint(insertTweet.InsertedID))
+	thread.Tweets = append(thread.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
 	_, err = coll.ReplaceOne(ctx, filter, thread)
 	msg := "¡Has agregado un tweet a tu thread!" // mensaje de login exitoso
 	fmt.Fprintf(c, msg+"\n")
@@ -654,8 +655,8 @@ func HandleNewThread(c net.Conn, arguments []string, username *string) {
 	var thread model.Thread
 	thread.Threadname = arguments[1]
 	thread.Tweets = []string{}
-	thread.Tweets = append(thread.Tweets, fmt.Sprint(insertTweet.InsertedID))
-
+	thread.Tweets = append(thread.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
+	fmt.Println(thread.Tweets)
 	_, err = coll.InsertOne(ctx, thread)
 	if err != nil {
 		log.Fatal(err)
@@ -721,14 +722,19 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 		}
 		log.Fatal(err)
 	}
-	
+	coll_tweets := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
 	for i := 0; i < len(thread.Tweets); i++ {
 		// busco el tweet y lo muestro. 
 		var tweet model.Tweet
-		filter = bson.D{
-			{"idtweet", thread.Tweets[i]},
+		id, error := primitive.ObjectIDFromHex(thread.Tweets[i])
+		if error != nil {
+			fmt.Fprintf(c, "Error")
 		}
-		_ = coll.FindOne(ctx, filter).Decode(&tweet) // no deberia tirar error xq estoy logueado ok
+		filter = bson.D{
+			{"_id", id}, // problema: no lo está encontrando, lo estoy buscando mal
+		}
+		_ = coll_tweets.FindOne(ctx, filter).Decode(&tweet) 
 		fmt.Fprintf(c, tweet.Content + "\n")
 	}
 
