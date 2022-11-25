@@ -36,18 +36,61 @@ const (
 	Like               string = "like"
 	MostLiked          string = "mostLiked" //puede ser de 2 tipos
 	MostFollowed       string = "mostFollowed"
+	WhoAmI string = "whoami"
 )
 
 // User login
+
+func LoggedUserChecker(c net.Conn, username *string, token string) bool {
+	switch token {
+		case "LOGIN","SIGNUP":
+			if *username != "" {
+				msg := "Ya hay alguien logueado " // mensaje de error
+				fmt.Fprintf(c, msg+"\n")
+				return false			
+			} 
+			return true
+		default:
+			if *username == ""{
+				msg := "Tenes que estar logueado para ejecutar este comando"
+				fmt.Fprintf(c, msg+"\n")
+				return false	
+			}
+			return true
+	}
+}
+// func DatabaseConnection() (*mongo.Client, context.Context){
+// 	client, ctx, cancel, err := database.Connect()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	defer database.Close(client, ctx, cancel)
+// 	database.Ping(client, ctx)
+// 	return client, ctx
+// }
+func GetUser(c net.Conn, coll *mongo.Collection, username string, client *mongo.Client, ctx context.Context) (model.User, bool){
+	var user model.User //usuario que quiero seguir
+	filter := bson.D{
+		{"username", username},
+	}
+
+	err := coll.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta: %s\n", username)
+			return user, true
+		}
+		log.Fatal(err)
+	}
+	return user, false
+}
+
 func HandleLogin(c net.Conn, arguments []string, username *string) {
 
-	if *username != "" {
-		msg := "No puedes iniciar sesión si ya hay alguien logueado " // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "LOGIN"){
 		return
 	}
 
-	fmt.Println("Voy a handlear un login")
 	client, ctx, cancel, err := database.Connect()
 
 	if err != nil {
@@ -55,22 +98,9 @@ func HandleLogin(c net.Conn, arguments []string, username *string) {
 	}
 	defer database.Close(client, ctx, cancel)
 	database.Ping(client, ctx)
-
 	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
-
-	var user model.User
-	filter := bson.D{
-		{"username", arguments[1]},
-	}
-
-	err = coll.FindOne(ctx, filter).Decode(&user)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			fmt.Fprintf(c, "No existe la cuenta \n")
-			return
-		}
-		log.Fatal(err)
-	}
+	user, failed := GetUser(c, coll, arguments[1], client, ctx)
+	if(failed){return}
 	if user.Password != arguments[2] {
 		fmt.Fprintf(c, "El password es incorrecto \n")
 		return
@@ -82,9 +112,8 @@ func HandleLogin(c net.Conn, arguments []string, username *string) {
 
 // User signup
 func HandleSignup(c net.Conn, arguments []string, username *string) {
-	if *username != "" {
-		msg := "No puedes crear una cuenta si hay alguien logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+
+	if !LoggedUserChecker(c, username, "SIGNUP"){
 		return
 	}
 	fmt.Println("Voy a handlear un signup")
@@ -136,9 +165,7 @@ func HandleSignup(c net.Conn, arguments []string, username *string) {
 
 func HandleTweet(c net.Conn, arguments []string, username *string) {
 
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 
@@ -176,16 +203,12 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	fmt.Fprintf(c, msg+"\n")
 
 }
+
 func HandleFollow(c net.Conn, arguments []string, username *string) {
-	fmt.Println("Voy a handlear un follow")
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
-
-	// Primero, busco al usuario que quiero seguir solo para saber si existe (no podes seguir a alguien que no existe)
-	// Despues, busco mi usuario (username)
+	fmt.Println("Voy a handlear un follow")
 
 	client, ctx, cancel, err := database.Connect()
 
@@ -196,47 +219,21 @@ func HandleFollow(c net.Conn, arguments []string, username *string) {
 	database.Ping(client, ctx)
 
 	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
-
-	var userToFollow model.User //usuario que quiero seguir
-	filter := bson.D{
-		{"username", arguments[1]},
-	}
-
-	err = coll.FindOne(ctx, filter).Decode(&userToFollow)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			fmt.Fprintf(c, "No existe la cuenta que quieres seguir\n")
-			return
-		}
-		log.Fatal(err)
-	}
+	userToFollow, failed := GetUser(c, coll, arguments[1], client, ctx)
+	if(failed){return}
 	userToFollow.Followers = append(userToFollow.Followers, *username)
-	_, err = coll.ReplaceOne(ctx, filter, userToFollow)
-	var user model.User //yo
-	filter = bson.D{
-		{"username", *username},
-	}
+	_, err = coll.ReplaceOne(ctx, bson.D{{"username", arguments[1]}}, userToFollow)
 
-	_ = coll.FindOne(ctx, filter).Decode(&user)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			fmt.Fprintf(c, "No existe la cuenta que quieres seguir\n")
-			return
-		}
-		log.Fatal(err)
-	}
+	user, failed := GetUser(c, coll, *username, client, ctx)
+	if(failed){return}
 	user.Following = append(user.Following, arguments[1])
-	_, err = coll.ReplaceOne(ctx, filter, user)
-	fmt.Println(user)
-	fmt.Println(userToFollow)
+	_, err = coll.ReplaceOne(ctx, bson.D{{"username", *username}}, user)
 	msg := "¡Has seguido a " + arguments[1] + " !" // mensaje de login exitoso
 	fmt.Fprintf(c, msg+"\n")
 
 }
 func HandleUnfollow(c net.Conn, arguments []string, username *string) {
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 
@@ -251,20 +248,9 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 	database.Ping(client, ctx)
 
 	coll := client.Database("tdl-los-tres-mosqueteros").Collection("users")
-
-	var userToUnfollow model.User //usuario que quiero seguir
-	filter := bson.D{
-		{"username", arguments[1]},
-	}
-
-	err = coll.FindOne(ctx, filter).Decode(&userToUnfollow)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			fmt.Fprintf(c, "No existe la cuenta a la que quieres hacer unfollow\n")
-			return
-		}
-		log.Fatal(err)
-	}
+	userToUnfollow, failed := GetUser(c, coll, arguments[1], client, ctx)
+	if(failed){return}
+	
 
 	//aca eliminamos al usuario de la lista de suscriptores del que quiere dejar de seguir
 	for i, j := range userToUnfollow.Followers {
@@ -272,19 +258,8 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 			userToUnfollow.Followers = append(userToUnfollow.Followers[:i], userToUnfollow.Followers[(i+1):]...)
 		}
 	}
-	_, err = coll.ReplaceOne(ctx, filter, userToUnfollow)
-	var user model.User //yo
-	filter = bson.D{
-		{"username", *username},
-	}
-	_ = coll.FindOne(ctx, filter).Decode(&user)
-	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			fmt.Fprintf(c, "No existe la cuenta a la que quieres hacer unfollow\n")
-			return
-		}
-		log.Fatal(err)
-	}
+	_, err = coll.ReplaceOne(ctx, bson.D{{"username", arguments[1]}}, userToUnfollow)
+	user, failed := GetUser(c, coll, *username, client, ctx)
 
 	//aca eliminamos al que queremos dejar de seguir de la lista de suscriptores del usuario
 	for i, j := range user.Following {
@@ -292,18 +267,15 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 			user.Following = append(user.Following[:i], user.Following[(i+1):]...)
 		}
 	}
-	_, err = coll.ReplaceOne(ctx, filter, user)
-	fmt.Println(user)
-	fmt.Println(userToUnfollow)
+	_, err = coll.ReplaceOne(ctx, bson.D{{"username", *username}}, user)
+
 	msg := "¡Has unfollow " + arguments[1] + " !" // mensaje de login exitoso
 	fmt.Fprintf(c, msg+"\n")
 }
 
 func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 	fmt.Println("Voy a handlear un tweet from")
@@ -402,13 +374,11 @@ func HandleMyTweets(c net.Conn, arguments []string, username *string) {
 
 }
 func HandleMyFollowers(c net.Conn, arguments []string, username *string) {
-
-	fmt.Println("Voy a handlear un myfollowers")
-	if *username == "" {
-		msg := "Tenes que estar logueado " // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
+	fmt.Println("Voy a handlear un myfollowers")
+
 	client, ctx, cancel, err := database.Connect()
 
 	if err != nil {
@@ -432,7 +402,6 @@ func HandleMyFollowers(c net.Conn, arguments []string, username *string) {
 		log.Fatal(err)
 	}
 	msg := "Las personas que te siguen son: " // mensaje de login exitoso
-	fmt.Println(user.Followers)
 	for i := 0; i < len(user.Followers); i++ {
 		msg = msg + " " + user.Followers[i]
 	}
@@ -441,9 +410,7 @@ func HandleMyFollowers(c net.Conn, arguments []string, username *string) {
 }
 func HandleMyFollowing(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un my following")
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 	client, ctx, cancel, err := database.Connect()
@@ -480,10 +447,7 @@ func HandleMyFollowing(c net.Conn, arguments []string, username *string) {
 func HandleFeed(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un feed")
-
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 	client, ctx, cancel, err := database.Connect()
@@ -554,9 +518,7 @@ func HandleReply(c net.Conn, arguments []string) {
 func HandleAddTweetToThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un addtweedtothread")
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 	client, ctx, cancel, err := database.Connect()
@@ -614,9 +576,7 @@ func HandleNewThread(c net.Conn, arguments []string, username *string) {
 
 	// newThread <name> <firstTweet>
 	fmt.Println("Voy a handlear un newThread")
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 
@@ -688,9 +648,7 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un thread")
 
-	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
-		fmt.Fprintf(c, msg+"\n")
+	if !LoggedUserChecker(c, username, "other"){
 		return
 	}
 	// solo busco mi thread y lo veo
@@ -758,6 +716,14 @@ func HandleMostFollowed(c net.Conn, arguments []string) {
 
 }
 
+func HandleWhoAmI(c net.Conn, username *string) {
+	if !LoggedUserChecker(c, username, "other"){
+		return
+	}
+	fmt.Fprintf(c, *username + "\n")
+
+}
+
 func ParseMessage(c net.Conn, message string, username *string) {
 	split_message := strings.SplitAfter(message, " ")
 	for i, v := range split_message {
@@ -806,6 +772,8 @@ func ParseMessage(c net.Conn, message string, username *string) {
 		HandleMostLiked(c, split_message)
 	case MostFollowed:
 		HandleMostFollowed(c, split_message)
+	case WhoAmI:
+		HandleWhoAmI(c, username)
 	default:
 		msg := "Error" // comando no existe
 		fmt.Fprintf(c, msg+"\n")
