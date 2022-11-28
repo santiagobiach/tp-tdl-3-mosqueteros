@@ -156,9 +156,12 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 
 	var tweet model.Tweet
 	var tweet_content string
-
+	topics := []string{}
 	for i := 1; i < len(arguments); i++ {
 		//Si la palabra empieza con # agregar a una coleccion de la bdd de topics
+		if arguments[i][0:1] == "#" {
+			topics = append(topics, arguments[i])		
+		}
 		tweet_content += arguments[i] + " "
 	}
 
@@ -172,6 +175,32 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	fmt.Println("hay un nuevo tweet, on id : ", insertTweet.InsertedID)
 	fmt.Println("El nuevo tweet es de ", tweet.Username)
 
+	for j := 0; j < len(topics); j++ {
+		fmt.Println("handleando tendencia:", topics[j])
+		coll_topics := client.Database("tdl-los-tres-mosqueteros").Collection("topics")
+		var topic_type model.Topic 
+		err = coll_topics.FindOne(ctx, bson.D{{"topicstring", topics[j]}}).Decode(&topic_type)
+		if err != nil {
+			if err == mongo.ErrNoDocuments { // no existe, hay que agregarlo.
+				topic_type.Topicstring = topics[j]
+				topic_type.Timestamp = tweet.Timestamp
+				topic_type.Tweets = []string{}
+				topic_type.Tweets = append(topic_type.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
+				_, err := coll_topics.InsertOne(ctx, topic_type)
+				if err != nil {
+					log.Fatal(err)
+				}
+			} else {
+				log.Fatal(err)
+			}
+		} else {
+			topic_type.Tweets = append(topic_type.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
+			_, err = coll_topics.ReplaceOne(ctx, bson.D{{"topicstring", topics[j]}}, topic_type)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 	msg := "tweet enviado" // mensaje de tweet exitoso
 	fmt.Fprintf(c, msg+"\n")
 
@@ -357,10 +386,67 @@ func HandleTrendingTopic(c net.Conn, arguments []string) {
 
 }
 
-func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
+func HandleTrendingTweetsFrom(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un ttfrom")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	if len(arguments) != 3 {
+		// arguments[1] = nombre de la tendencia 
+		// arguments[2] = numero de tweets para ver de la tendencia
+		msg := "Comando incompleto"
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
 
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+	// por ahora lo hago sin los d dias y los n tweets, busco una tendencia y devuelvo sus tweets
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("topics")
+	
+	var topic model.Topic 
+	filter := bson.D{
+		{"topicstring", arguments[1]},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&topic)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe el topic \n")
+			return
+		}
+		log.Fatal(err)
+	}
+	coll_tweets := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+	var limit int 
+	var requested_n, errr = strconv.Atoi(arguments[2])
+	if errr != nil {
+		log.Fatal(err)
+	}
+	if requested_n >= len(topic.Tweets){
+		limit = len(topic.Tweets)
+	} else {
+		limit = requested_n
+	}
+	for i := 0; i < limit; i++ {
+		// busco el tweet y lo muestro. 
+		var tweet model.Tweet
+		id, error := primitive.ObjectIDFromHex(topic.Tweets[i])
+		if error != nil {
+			fmt.Fprintf(c, "Error")
+		}
+		filter = bson.D{
+			{"_id", id}, // problema: no lo está encontrando, lo estoy buscando mal
+		}
+		_ = coll_tweets.FindOne(ctx, filter).Decode(&tweet) 
+		fmt.Fprintf(c, tweet.Content + "\n")
+	}
 }
 func HandleMyTweets(c net.Conn, arguments []string, username *string) {
 
@@ -783,7 +869,7 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case TrendingTopic:
 		HandleTrendingTopic(c, split_message)
 	case TrendingTweetsFrom:
-		HandleTrendingTweetsFrom(c, split_message)
+		HandleTrendingTweetsFrom(c, split_message, username)
 	case MyTweets:
 		HandleMyTweets(c, split_message, username)
 	case MyFollowers:
