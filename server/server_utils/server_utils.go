@@ -13,6 +13,7 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 const (
@@ -151,7 +152,6 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	defer database.Close(client, ctx, cancel)
 	database.Ping(client, ctx)
 
-	//coll_user := client.Database("tdl-los-tres-mosqueteros").Collection("users")
 	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
 
 	var tweet model.Tweet
@@ -551,21 +551,194 @@ func HandleReply(c net.Conn, arguments []string) {
 	fmt.Println("Voy a handlear un reply")
 }
 
-func HandleAddTweetToThread(c net.Conn, arguments []string) {
+func HandleAddTweetToThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un addtweedtothread")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
 
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+
+	// creo el tweet 
+	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
+	var tweet model.Tweet
+	var tweet_content string
+
+	for i := 2; i < len(arguments); i++ {
+		//Si la palabra empieza con # agregar a una coleccion de la bdd de topics
+		tweet_content += arguments[i] + " "
+	}
+
+	tweet.Content = tweet_content
+	tweet.Username = *username
+	tweet.Timestamp = time.Now()
+	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// creo el thread con el ID del primer tweet en su lista de tweets
+
+	// agrego el tweet al thread
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("threads")
+
+	var thread model.Thread // yo
+	filter := bson.D{
+		{"threadname", arguments[1]},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&thread)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe el thread \n")
+			return
+		}
+		log.Fatal(err)
+	}
+
+	thread.Tweets = append(thread.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
+	_, err = coll.ReplaceOne(ctx, filter, thread)
+	msg := "¡Has agregado un tweet a tu thread!" // mensaje de login exitoso
+	fmt.Fprintf(c, msg+"\n")
 }
 
-func HandleNewThread(c net.Conn, arguments []string) {
+func HandleNewThread(c net.Conn, arguments []string, username *string) {
 
-	fmt.Println("Voy a handlear un newthread")
+	// newThread <name> <firstTweet>
+	fmt.Println("Voy a handlear un newThread")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
 
+	// creo el tweet y lo guardo en la BDD, me quedo con su ID
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
+	var tweet model.Tweet
+	var tweet_content string
+
+	for i := 2; i < len(arguments); i++ {
+		//Si la palabra empieza con # agregar a una coleccion de la bdd de topics
+		tweet_content += arguments[i] + " "
+	}
+
+	tweet.Content = tweet_content
+	tweet.Username = *username
+	tweet.Timestamp = time.Now()
+	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// var tweetId string = insertTweet.InsertedID
+
+	// creo el thread con el ID del primer tweet en su lista de tweets
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("threads")
+
+	var thread model.Thread
+	thread.Threadname = arguments[1]
+	thread.Tweets = []string{}
+	thread.Tweets = append(thread.Tweets, insertTweet.InsertedID.(primitive.ObjectID).Hex())
+	fmt.Println(thread.Tweets)
+	_, err = coll.InsertOne(ctx, thread)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// le agrego el nombre del thread al usuario en su lista de threads
+	coll = client.Database("tdl-los-tres-mosqueteros").Collection("users")
+
+	var user model.User //yo
+	filter := bson.D{
+		{"username", *username},
+	}
+
+	_ = coll.FindOne(ctx, filter).Decode(&user) // no deberia tirar error xq estoy logueado ok
+	user.Threads = append(user.Threads, thread.Threadname)
+	_, err = coll.ReplaceOne(ctx, filter, user)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// mensaje de éxito
+
+	msg := "Creaste un thread correctamente!"
+	fmt.Fprintf(c, msg+"\n")
 }
-func HandleThread(c net.Conn, arguments []string) {
+
+
+func HandleThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un thread")
 
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	// solo busco mi thread y lo veo
+	// como los threads se guardan en una base de datos todos juntos, 
+	// no puden tener nombre repetido. entonces no hace falta que busque al usuario y de ahí al thread
+	//, puedo buscar directamente el thread
+
+	// dejo todo comentado para no olvidarme jaja
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("threads")
+
+	var thread model.Thread // yo
+	filter := bson.D{
+		{"threadname", arguments[1]},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&thread)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe el thread \n")
+			return
+		}
+		log.Fatal(err)
+	}
+	coll_tweets := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+
+	for i := 0; i < len(thread.Tweets); i++ {
+		// busco el tweet y lo muestro. 
+		var tweet model.Tweet
+		id, error := primitive.ObjectIDFromHex(thread.Tweets[i])
+		if error != nil {
+			fmt.Fprintf(c, "Error")
+		}
+		filter = bson.D{
+			{"_id", id}, // problema: no lo está encontrando, lo estoy buscando mal
+		}
+		_ = coll_tweets.FindOne(ctx, filter).Decode(&tweet) 
+		fmt.Fprintf(c, tweet.Content + "\n")
+	}
+
+	
 }
 
 func HandleLike(c net.Conn, arguments []string) {
@@ -622,11 +795,11 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case Reply:
 		HandleReply(c, split_message)
 	case NewThread:
-		HandleNewThread(c, split_message)
+		HandleNewThread(c, split_message, username)
 	case AddTweetToThread:
-		HandleAddTweetToThread(c, split_message)
+		HandleAddTweetToThread(c, split_message, username)
 	case Thread:
-		HandleThread(c, split_message)
+		HandleThread(c, split_message, username)
 	case Like:
 		HandleLike(c, split_message)
 	case MostLiked:
