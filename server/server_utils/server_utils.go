@@ -29,15 +29,68 @@ const (
 	MyFollowers        string = "myFollowers"
 	MyFollowing        string = "myFollowing"
 	Feed               string = "feed"
-	Reply              string = "reply"
 	NewThread          string = "newThread"
 	AddTweetToThread   string = "addTweetToThread"
 	Thread             string = "thread"
 	Like               string = "like"
 	MostLiked          string = "mostLiked" //puede ser de 2 tipos
 	MostFollowed       string = "mostFollowed"
+	Help string = "help"
 )
 
+func HandleHelp(c net.Conn) {
+	fmt.Fprintf(c, "BIENVENIDO A TWITTER\n")
+
+	fmt.Fprintf(c, "COMANDOS: \n")
+
+	fmt.Fprintf(c, "	creá tu cuenta: \n")
+	fmt.Fprintf(c, "		signup <usuario> <contraseña> <contraseña> \n")
+
+	fmt.Fprintf(c, "	ingresá en tu cuenta: \n")
+	fmt.Fprintf(c, "		login <usuario> <contraseña> \n")
+
+	fmt.Fprintf(c, "	tweetea algo: \n")
+	fmt.Fprintf(c, "		tweet <escribir algo> \n")
+
+	fmt.Fprintf(c, "	seguir a otro usuario: \n")
+	fmt.Fprintf(c, "		follow <usuario> \n")
+
+	fmt.Fprintf(c, "	dejá de seguir a otro usuario: \n")
+	fmt.Fprintf(c, "		unfollow <usuario> \n")
+
+	fmt.Fprintf(c, "	ver los tweets de otro usuario en los últimos días: \n")
+	fmt.Fprintf(c, "		tweetsFrom <usuario> <cantidad de días> \n")
+
+	fmt.Fprintf(c, "	ver cierta cantidad de top tendencias en los últimos días: \n")
+	fmt.Fprintf(c, "		trendingTopic <cantidad de tendencias> <cantidad de días> \n")
+
+	fmt.Fprintf(c, "	ver cierta cantidad de tweets de cierta tendencia: \n")
+	fmt.Fprintf(c, "		trendingTweetsFrom <tendencia> <cantidad de tweets> \n")
+
+	fmt.Fprintf(c, "	ver mis tweets: \n")
+	fmt.Fprintf(c, "		myTweets \n")
+
+	fmt.Fprintf(c, "	ver los usuarios que me siguen: \n")
+	fmt.Fprintf(c, "		myFollowers \n")
+
+	fmt.Fprintf(c, "	ver tweets de los usuarios que sigo en los últimos días: \n")
+	fmt.Fprintf(c, "		feed <cantidad de días> \n")
+
+	fmt.Fprintf(c, "	crear un hilo: \n")
+	fmt.Fprintf(c, "		newThread <nombre del thread> <primer tweet> \n")
+
+	fmt.Fprintf(c, "	agregar un tweet a un thread ya existente: \n")
+	fmt.Fprintf(c, "		addTweetToThread <nombre del thread> <tweet> \n")
+
+	fmt.Fprintf(c, "	ver todos los tweets de alguno de mis threads: \n")
+	fmt.Fprintf(c, "		thread <nombre del thread> \n")
+
+	fmt.Fprintf(c, "	ver los usuarios a los que sigo: \n")
+	fmt.Fprintf(c, "		myFollowing \n")
+
+	fmt.Fprintf(c, "	ver el usuario más seguido de twitter: \n")
+	fmt.Fprintf(c, "		mostFollowed \n")
+}
 // User login
 func HandleLogin(c net.Conn, arguments []string, username *string) {
 
@@ -76,7 +129,7 @@ func HandleLogin(c net.Conn, arguments []string, username *string) {
 		return
 	}
 	*username = user.Username
-	msg := "holà " + user.Username // mensaje de login exitoso
+	msg := "¡Bienvenido, " + user.Username + "!"// mensaje de login exitoso
 	fmt.Fprintf(c, msg+"\n")
 }
 
@@ -124,7 +177,7 @@ func HandleSignup(c net.Conn, arguments []string, username *string) {
 
 			fmt.Println("Inserted a single document: ", insertResult.InsertedID)
 
-			msg := "cuenta creada" // mensaje de login exitoso
+			msg := "¡Tu cuenta ha sido creada!" // mensaje de login exitoso
 			fmt.Fprintf(c, msg+"\n")
 			return
 		}
@@ -137,7 +190,7 @@ func HandleSignup(c net.Conn, arguments []string, username *string) {
 func HandleTweet(c net.Conn, arguments []string, username *string) {
 
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -172,14 +225,14 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	fmt.Println("hay un nuevo tweet, on id : ", insertTweet.InsertedID)
 	fmt.Println("El nuevo tweet es de ", tweet.Username)
 
-	msg := "tweet enviado" // mensaje de tweet exitoso
+	msg := "Tweet enviado satisfactoriamente" // mensaje de tweet exitoso
 	fmt.Fprintf(c, msg+"\n")
 
 }
 func HandleFollow(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un follow")
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -235,7 +288,7 @@ func HandleFollow(c net.Conn, arguments []string, username *string) {
 }
 func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -302,7 +355,7 @@ func HandleUnfollow(c net.Conn, arguments []string, username *string) {
 func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -346,7 +399,7 @@ func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 	for _, result := range results {
 		cursor.Decode(&result)
 
-		msg = result.Idtweet + result.Content + result.Timestamp.String()
+		msg = result.Idtweet + result.Content + " - " + result.Timestamp.Format(time.RFC822)
 		fmt.Fprintf(c, msg+"\n")
 	}
 
@@ -395,8 +448,7 @@ func HandleMyTweets(c net.Conn, arguments []string, username *string) {
 	msg := ""
 	for _, result := range results {
 		cursor.Decode(&result)
-
-		msg = result.Idtweet + result.Content + result.Timestamp.String()
+		msg = result.Idtweet + result.Content + " - " + result.Timestamp.Format(time.RFC822)
 		fmt.Fprintf(c, msg+"\n")
 	}
 
@@ -405,7 +457,7 @@ func HandleMyFollowers(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un myfollowers")
 	if *username == "" {
-		msg := "Tenes que estar logueado " // mensaje de error
+		msg := "Tenes que estar logueado" 
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -541,21 +593,17 @@ func HandleFeed(c net.Conn, arguments []string, username *string) {
 	for _, result := range results {
 		cursor.Decode(&result)
 
-		msg = result.Username + result.Idtweet + result.Content + result.Timestamp.String()
+		msg = result.Username + result.Idtweet + result.Content + " - " + result.Timestamp.Format(time.RFC822)
 		fmt.Fprintf(c, msg+"\n")
 	}
 
-}
-func HandleReply(c net.Conn, arguments []string) {
-
-	fmt.Println("Voy a handlear un reply")
 }
 
 func HandleAddTweetToThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un addtweedtothread")
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -614,7 +662,7 @@ func HandleNewThread(c net.Conn, arguments []string, username *string) {
 	// newThread <name> <firstTweet>
 	fmt.Println("Voy a handlear un newThread")
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -678,7 +726,7 @@ func HandleNewThread(c net.Conn, arguments []string, username *string) {
 
 	// mensaje de éxito
 
-	msg := "Creaste un thread correctamente!"
+	msg := "¡Creaste un thread correctamente!"
 	fmt.Fprintf(c, msg+"\n")
 }
 
@@ -687,7 +735,7 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un thread")
 
 	if *username == "" {
-		msg := "Tenes que estar logueado" // mensaje de error
+		msg := "Tenes que estar logueado para ejecutar este comando" // mensaje de error
 		fmt.Fprintf(c, msg+"\n")
 		return
 	}
@@ -789,8 +837,8 @@ func ParseMessage(c net.Conn, message string, username *string) {
 		HandleMyFollowing(c, split_message, username)
 	case Feed:
 		HandleFeed(c, split_message, username)
-	case Reply:
-		HandleReply(c, split_message)
+	// case Reply:
+	// 	HandleReply(c, split_message)
 	case NewThread:
 		HandleNewThread(c, split_message, username)
 	case AddTweetToThread:
@@ -803,8 +851,10 @@ func ParseMessage(c net.Conn, message string, username *string) {
 		HandleMostLiked(c, split_message)
 	case MostFollowed:
 		HandleMostFollowed(c, split_message)
+	case Help:
+		HandleHelp(c)
 	default:
-		msg := "Error" // comando no existe
+		msg := "El comando que has ingresado no existe" // comando no existe
 		fmt.Fprintf(c, msg+"\n")
 	}
 	msg := "ok"

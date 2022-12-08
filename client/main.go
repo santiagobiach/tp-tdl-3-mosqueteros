@@ -7,9 +7,11 @@ import (
 	"net"
 	"os"
 	"strings"
+
 )
 
 func main() {
+
 	//Se provee host:port como argumento del programa
 	arguments := os.Args
 	if len(arguments) == 1 {
@@ -37,7 +39,8 @@ func main() {
 		//Hay comandos que devuelven varias lineas(Vease cualquiera q tenga que ver con tweets)
 		//Para arreglar eso usamos a "ok" como mensaje de que termino de ejecutarse el comando
 		for message != "ok\n" {
-			fmt.Print("->: " + message)
+			// fmt.Print("->: " + message)
+			fmt.Print(message)
 			message, _ = readerFromServer.ReadString('\n')
 		}
 		//Esto definitivamente no va.
