@@ -8,6 +8,7 @@ import (
 	"net"
 	"server/database"
 	"server/model"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -366,9 +367,67 @@ func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 	}
 
 }
-func HandleTrendingTopic(c net.Conn, arguments []string) {
-
+func HandleTrendingTopic(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un tt")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	if len(arguments) != 2 {
+		// arguments[1] = nombre de la tendencia
+		// arguments[2] = numero de tweets para ver de la tendencia
+		msg := "Comando incompleto"
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+	// por ahora lo hago sin los d dias y los n tweets, busco una tendencia y devuelvo sus tweets
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("topics") //cambiar a tt
+
+	//var limit int
+	var requested_n, errr = strconv.Atoi(arguments[1])
+	if errr != nil {
+		log.Fatal(err)
+	}
+
+	filter := bson.D{
+		{},
+	}
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta que queres seguir\n")
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Topics
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	println(results)
+	sort.Slice(results[:], func(i, j int) bool {
+		return len(results[i].Tweets) < len(results[i].Tweets)
+	})
+
+	var limit int
+	if requested_n >= len(results) {
+		limit = len(results)
+	} else {
+		limit = requested_n
+	}
+
+	for i := 0; i < limit; i++ {
+		// busco el tweet y lo muestro.
+		fmt.Fprintf(c, strconv.Itoa(i)+results[i].Topicstring+"\n")
+	}
 
 }
 
@@ -850,7 +909,7 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case TweetsFrom:
 		HandleTweetsFrom(c, split_message, username)
 	case TrendingTopic:
-		HandleTrendingTopic(c, split_message)
+		HandleTrendingTopic(c, split_message, username)
 	case TrendingTweetsFrom:
 		HandleTrendingTweetsFrom(c, split_message, username)
 	case MyTweets:
