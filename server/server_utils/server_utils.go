@@ -568,9 +568,70 @@ func HandleThread(c net.Conn, arguments []string) {
 
 }
 
-func HandleLike(c net.Conn, arguments []string) {
+func HandleLike(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un like")
+
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("tweet")
+
+	/*var userToFollow model.User //usuario que quiero seguir
+	filter := bson.D{
+		{"username", arguments[1]},
+	}
+
+	err = coll.FindOne(ctx, filter).Decode(&userToFollow)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta que quieres seguir\n")
+			return
+		}
+		log.Fatal(err)
+	}
+	*/
+
+	var idTweetToLike model.Tweet //tweet que queremos like
+
+	filter := bson.D{
+		{"idtweet", arguments[1]},
+	}
+
+	err = coll.FindOne(ctx, filter).Decode(&idTweetToLike)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe el tweet que quieres liked\n")
+			return
+		}
+		log.Fatal(err)
+	}
+
+	/*userToFollow.Followers = append(userToFollow.Followers, *username)
+	_, err = coll.ReplaceOne(ctx, filter, userToFollow)
+	var user model.User //yo
+	filter = bson.D{
+		{"username", *username},
+	}
+	*/
+
+	/*user.Following = append(user.Following, arguments[1])
+	_, err = coll.ReplaceOne(ctx, filter, user)
+	fmt.Println(user)
+	fmt.Println(userToFollow)
+	msg := "¡Has seguido a " + arguments[1] + " !" // mensaje de login exitoso
+	fmt.Fprintf(c, msg+"\n")*/
 
 }
 func HandleMostLiked(c net.Conn, arguments []string) {
@@ -628,7 +689,7 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case Thread:
 		HandleThread(c, split_message)
 	case Like:
-		HandleLike(c, split_message)
+		HandleLike(c, split_message, username)
 	case MostLiked:
 		HandleMostLiked(c, split_message)
 	case MostFollowed:
