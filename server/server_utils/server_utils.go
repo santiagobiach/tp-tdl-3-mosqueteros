@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 const (
@@ -541,7 +541,7 @@ func HandleFeed(c net.Conn, arguments []string, username *string) {
 	for _, result := range results {
 		cursor.Decode(&result)
 
-		msg = result.Idtweet + result.Content + result.Timestamp.String()
+		msg = result.Username + result.Idtweet + result.Content + result.Timestamp.String()
 		fmt.Fprintf(c, msg+"\n")
 	}
 
@@ -567,8 +567,7 @@ func HandleAddTweetToThread(c net.Conn, arguments []string, username *string) {
 	defer database.Close(client, ctx, cancel)
 	database.Ping(client, ctx)
 
-
-	// creo el tweet 
+	// creo el tweet
 	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
 
 	var tweet model.Tweet
@@ -683,7 +682,6 @@ func HandleNewThread(c net.Conn, arguments []string, username *string) {
 	fmt.Fprintf(c, msg+"\n")
 }
 
-
 func HandleThread(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un thread")
@@ -694,7 +692,7 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 		return
 	}
 	// solo busco mi thread y lo veo
-	// como los threads se guardan en una base de datos todos juntos, 
+	// como los threads se guardan en una base de datos todos juntos,
 	// no puden tener nombre repetido. entonces no hace falta que busque al usuario y de ahí al thread
 	//, puedo buscar directamente el thread
 
@@ -725,7 +723,7 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 	coll_tweets := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
 
 	for i := 0; i < len(thread.Tweets); i++ {
-		// busco el tweet y lo muestro. 
+		// busco el tweet y lo muestro.
 		var tweet model.Tweet
 		id, error := primitive.ObjectIDFromHex(thread.Tweets[i])
 		if error != nil {
@@ -734,11 +732,10 @@ func HandleThread(c net.Conn, arguments []string, username *string) {
 		filter = bson.D{
 			{"_id", id}, // problema: no lo está encontrando, lo estoy buscando mal
 		}
-		_ = coll_tweets.FindOne(ctx, filter).Decode(&tweet) 
-		fmt.Fprintf(c, tweet.Content + "\n")
+		_ = coll_tweets.FindOne(ctx, filter).Decode(&tweet)
+		fmt.Fprintf(c, tweet.Content+"\n")
 	}
 
-	
 }
 
 func HandleLike(c net.Conn, arguments []string) {
