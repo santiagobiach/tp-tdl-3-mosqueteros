@@ -7,6 +7,7 @@ import (
 	"os"
 	"server/server_utils"
 	"strings"
+	"time"
 )
 
 func handleConnection(c net.Conn) {
@@ -31,6 +32,13 @@ func handleConnection(c net.Conn) {
 	c.Close()
 }
 
+func createTrendingTopics() {
+	for {
+		server_utils.UpdateTrendingTopics()
+		time.Sleep(10 * time.Minute)
+	}
+}
+
 func main() {
 	arguments := os.Args
 	if len(arguments) == 1 {
@@ -45,6 +53,7 @@ func main() {
 		return
 	}
 	defer l.Close()
+	go createTrendingTopics()
 
 	for {
 		c, err := l.Accept()

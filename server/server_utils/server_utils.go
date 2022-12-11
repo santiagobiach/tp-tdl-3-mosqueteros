@@ -3,10 +3,12 @@ package server_utils
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"net"
 	"server/database"
 	"server/model"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -206,12 +208,15 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	database.Ping(client, ctx)
 
 	coll_tweet := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
-
+	topics := client.Database("tdl-los-tres-mosqueteros").Collection("topics")
 	var tweet model.Tweet
 	var tweet_content string
-
+	topics_content := make([]string, 5)
 	for i := 1; i < len(arguments); i++ {
 		//Si la palabra empieza con # agregar a una coleccion de la bdd de topics
+		if strings.HasPrefix(arguments[i], "#") {
+			topics_content = append(topics_content, arguments[i])
+		}
 		tweet_content += arguments[i] + " "
 	}
 
@@ -219,6 +224,17 @@ func HandleTweet(c net.Conn, arguments []string, username *string) {
 	tweet.Username = *username
 	tweet.Timestamp = time.Now()
 	insertTweet, err := coll_tweet.InsertOne(ctx, tweet)
+	for t := range topics_content {
+		opts := options.Update().SetUpsert(true)
+		filter := bson.D{
+			{"Topicstring", t},
+		}
+		update := bson.D{{"$push", bson.D{{"Tweets", tweet}}}}
+		_, err := topics.UpdateOne(ctx, filter, update, opts)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -404,17 +420,132 @@ func HandleTweetsFrom(c net.Conn, arguments []string, username *string) {
 	}
 
 }
-func HandleTrendingTopic(c net.Conn, arguments []string) {
-
+func HandleTrendingTopic(c net.Conn, arguments []string, username *string) {
 	fmt.Println("Voy a handlear un tt")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	if len(arguments) != 2 {
+		// arguments[1] = nombre de la tendencia
+		// arguments[2] = numero de tweets para ver de la tendencia
+		msg := "Comando incompleto"
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+	// por ahora lo hago sin los d dias y los n tweets, busco una tendencia y devuelvo sus tweets
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("topics") //cambiar a tt
+
+	//var limit int
+	var requested_n, errr = strconv.Atoi(arguments[1])
+	if errr != nil {
+		log.Fatal(err)
+	}
+
+	filter := bson.D{
+		{},
+	}
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe la cuenta que queres seguir\n")
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Topics
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	println(results)
+	sort.Slice(results[:], func(i, j int) bool {
+		return len(results[i].Tweets) < len(results[i].Tweets)
+	})
+
+	var limit int
+	if requested_n >= len(results) {
+		limit = len(results)
+	} else {
+		limit = requested_n
+	}
+
+	for i := 0; i < limit; i++ {
+		// busco el tweet y lo muestro.
+		fmt.Fprintf(c, strconv.Itoa(i)+results[i].Topicstring+"\n")
+	}
 
 }
 
-func HandleTrendingTweetsFrom(c net.Conn, arguments []string) {
-
+func HandleTrendingTweetsFrom(c net.Conn, arguments []string, username *string) {
+	//Tweets from topic
 	fmt.Println("Voy a handlear un ttfrom")
+	if *username == "" {
+		msg := "Tenes que estar logueado" // mensaje de error
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	if len(arguments) != 3 {
+		// arguments[1] = nombre de la tendencia
+		// arguments[2] = numero de tweets para ver de la tendencia
+		msg := "Comando incompleto"
+		fmt.Fprintf(c, msg+"\n")
+		return
+	}
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+	// por ahora lo hago sin los d dias y los n tweets, busco una tendencia y devuelvo sus tweets
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("topics")
+
+	//var limit int
+	var requested_n, errr = strconv.Atoi(arguments[2])
+	if errr != nil {
+		log.Fatal(err)
+	}
+
+	var topic model.Topic
+	filter := bson.D{
+		{"Topicstring", arguments[1]},
+	}
+	err = coll.FindOne(ctx, filter).Decode(&topic)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			fmt.Fprintf(c, "No existe el topic \n")
+			return
+		}
+		log.Fatal(err)
+	}
+
+	var limit int
+	if requested_n >= len(topic.Tweets) {
+		limit = len(topic.Tweets)
+	} else {
+		limit = requested_n
+	}
+	tope := len(topic.Tweets) - 1
+	for i := 0; i < limit; i++ {
+		// busco el tweet y lo muestro.
+		tweet := topic.Tweets[tope-i]
+		msg := ""
+
+		msg = tweet.Username + ":" + tweet.Idtweet + tweet.Content + tweet.Timestamp.Format(time.RFC822)
+		fmt.Fprintf(c, msg+"\n")
+	}
 
 }
+
 func HandleMyTweets(c net.Conn, arguments []string, username *string) {
 
 	fmt.Println("Voy a handlear un my tweets")
@@ -826,9 +957,9 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	case TweetsFrom:
 		HandleTweetsFrom(c, split_message, username)
 	case TrendingTopic:
-		HandleTrendingTopic(c, split_message)
+		HandleTrendingTopic(c, split_message, username)
 	case TrendingTweetsFrom:
-		HandleTrendingTweetsFrom(c, split_message)
+		HandleTrendingTweetsFrom(c, split_message, username)
 	case MyTweets:
 		HandleMyTweets(c, split_message, username)
 	case MyFollowers:
@@ -859,4 +990,87 @@ func ParseMessage(c net.Conn, message string, username *string) {
 	}
 	msg := "ok"
 	fmt.Fprintf(c, msg+"\n")
+}
+func UpdateTrendingTopics() {
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	coll := client.Database("tdl-los-tres-mosqueteros").Collection("tweets")
+	tts := client.Database("tdl-los-tres-mosqueteros").Collection("trendingtopics")
+
+	tts.DeleteMany(ctx, bson.M{})
+	//Tambien borrar lo de trending topics
+	now := time.Now().UTC()
+	aux := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	filter := bson.D{
+		{"timestamp", bson.M{
+			"$gte": aux.Add(-5 * time.Minute),
+		}},
+	}
+	cursor, err := coll.Find(ctx, filter)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return
+		}
+		log.Fatal(err)
+	}
+	var results model.Tweets
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		log.Fatal(err)
+	}
+	cant_goroutines := 4
+	var channels [4]chan model.Tweet
+	for i := 0; i < cant_goroutines; i++ {
+		channels[i] = make(chan model.Tweet)
+		go ProcessTweets(channels[i])
+	}
+	for i, result := range results {
+		cursor.Decode(&result)
+		aux := i % cant_goroutines
+		channels[aux] <- result
+	}
+	for i := range channels {
+		close(channels[i])
+	}
+	println("TERMINANDO HILO PRINCIPAL")
+}
+func ProcessTweets(c chan model.Tweet) {
+	client, ctx, cancel, err := database.Connect()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer database.Close(client, ctx, cancel)
+	database.Ping(client, ctx)
+
+	tts := client.Database("tdl-los-tres-mosqueteros").Collection("trendingtopics")
+
+	for {
+		tweet, ok := <-c
+		if !ok {
+			println("TERMINANDO HILO SECUNDARIO")
+			return
+		}
+		split_message := strings.SplitAfter(tweet.Content, " ")
+		for i, v := range split_message {
+			split_message[i] = strings.TrimSpace(v)
+			if strings.HasPrefix(split_message[i], "#") {
+				opts := options.Update().SetUpsert(true)
+				filter := bson.D{
+					{"Topicstring", split_message[i]},
+				}
+				update := bson.D{{"$push", bson.D{{"Tweets", tweet}}}}
+				_, err := tts.UpdateOne(ctx, filter, update, opts)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}
+
 }
